@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Revflo Lead Finder</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0A0F1E; color: #e5e7eb; padding: 2rem; min-height: 100vh; }
+.container { max-width: 860px; margin: 0 auto; }
+.header { margin-bottom: 1.5rem; }
+.header h1 { font-size: 22px; font-weight: 600; color: #f9fafb; }
+.header p { font-size: 13px; color: #9ca3af; margin-top: 4px; }
+.section-label { font-size: 12px; color: #9ca3af; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+.keyword-tags, .subreddit-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 1rem; }
+.tag { font-size: 12px; padding: 5px 12px; border-radius: 20px; cursor: pointer; border: 1px solid #1e2a3a; background: #111827; color: #9ca3af; transition: all 0.15s; }
+.tag:hover { border-color: #00C9A7; color: #00C9A7; }
+.tag.active { background: #003d33; border-color: #00C9A7; color: #00C9A7; font-weight: 500; }
+.controls { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 1rem; }
+.control-group label { font-size: 12px; color: #9ca3af; display: block; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+select, input[type="number"] { width: 100%; font-size: 13px; background: #111827; border: 1px solid #1e2a3a; color: #e5e7eb; padding: 8px 12px; border-radius: 8px; outline: none; }
+select:focus, input:focus { border-color: #00C9A7; }
+.search-btn { width: 100%; padding: 12px; font-size: 14px; font-weight: 600; background: #00C9A7; color: #0A0F1E; border: none; border-radius: 10px; cursor: pointer; margin-bottom: 1.5rem; transition: background 0.15s; }
+.search-btn:hover { background: #00b396; }
+.search-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 1.5rem; }
+.stat { background: #111827; border: 1px solid #1e2a3a; border-radius: 10px; padding: 14px; text-align: center; }
+.stat-num { font-size: 24px; font-weight: 600; color: #00C9A7; }
+.stat-label { font-size: 11px; color: #9ca3af; margin-top: 3px; }
+.results { display: flex; flex-direction: column; gap: 10px; }
+.post-card { background: #111827; border: 1px solid #1e2a3a; border-radius: 12px; padding: 16px; transition: border-color 0.15s; }
+.post-card:hover { border-color: #2d3f50; }
+.post-meta { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+.badge { font-size: 11px; font-weight: 500; padding: 3px 9px; border-radius: 20px; }
+.badge-sub { background: #003d33; color: #00C9A7; }
+.badge-score { background: #1a2332; color: #9ca3af; }
+.badge-hot { background: #2d1a00; color: #f97316; }
+.badge-kw { background: #1a1f3a; color: #818cf8; }
+.post-title { font-size: 14px; font-weight: 500; color: #f9fafb; margin-bottom: 6px; line-height: 1.5; }
+.post-snippet { font-size: 12px; color: #9ca3af; line-height: 1.6; margin-bottom: 12px; }
+.post-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.post-meta-info { font-size: 11px; color: #6b7280; }
+.post-actions { display: flex; gap: 6px; }
+.btn-view { font-size: 12px; padding: 6px 14px; background: transparent; color: #9ca3af; border: 1px solid #1e2a3a; border-radius: 8px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; }
+.btn-view:hover { background: #1a2332; color: #e5e7eb; }
+.btn-reply { font-size: 12px; padding: 6px 14px; background: #00C9A7; color: #0A0F1E; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; }
+.btn-reply:hover { background: #00b396; }
+.highlight { background: #2d2000; color: #fbbf24; padding: 1px 3px; border-radius: 3px; font-weight: 500; }
+.empty { text-align: center; padding: 4rem 1rem; color: #6b7280; font-size: 14px; }
+.loading { text-align: center; padding: 3rem; color: #9ca3af; font-size: 14px; }
+.error-msg { background: #2d0a0a; border: 1px solid #7f1d1d; border-radius: 10px; padding: 12px 16px; font-size: 13px; color: #fca5a5; margin-bottom: 1rem; }
+.draft-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; padding: 1rem; }
+.draft-modal.open { display: flex; }
+.draft-box { background: #111827; border: 1px solid #1e2a3a; border-radius: 14px; padding: 1.5rem; max-width: 600px; width: 100%; max-height: 80vh; overflow-y: auto; }
+.draft-box h3 { font-size: 16px; font-weight: 500; color: #f9fafb; margin-bottom: 1rem; }
+.draft-content { font-size: 13px; color: #d1d5db; line-height: 1.7; white-space: pre-wrap; background: #0A0F1E; border: 1px solid #1e2a3a; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; min-height: 100px; }
+.draft-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.btn-copy { font-size: 13px; padding: 8px 16px; background: #00C9A7; color: #0A0F1E; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; }
+.btn-close { font-size: 13px; padding: 8px 16px; background: transparent; color: #9ca3af; border: 1px solid #1e2a3a; border-radius: 8px; cursor: pointer; }
+.generating { color: #9ca3af; font-style: italic; }
+@media (max-width: 600px) {
+  body { padding: 1rem; }
+  .controls { grid-template-columns: 1fr; }
+  .stats { grid-template-columns: repeat(3, 1fr); }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Revflo Lead Finder</h1>
+    <p>Find service business owners on Reddit talking about problems Revflo solves</p>
+  </div>
+
+  <div class="section-label">Keywords</div>
+  <div class="keyword-tags" id="keyword-tags"></div>
+
+  <div class="section-label">Subreddits</div>
+  <div class="subreddit-tags" id="subreddit-tags"></div>
+
+  <div class="controls">
+    <div class="control-group">
+      <label>Sort by</label>
+      <select id="sort-select">
+        <option value="hot" selected>Hot</option>
+        <option value="new">New</option>
+        <option value="top">Top (this month)</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>Min upvotes</label>
+      <input type="number" id="min-score" value="1" min="0" />
+    </div>
+  </div>
+
+  <button class="search-btn" id="search-btn">Search Reddit</button>
+
+  <div id="stats" style="display:none" class="stats">
+    <div class="stat"><div class="stat-num" id="stat-total">0</div><div class="stat-label">Posts found</div></div>
+    <div class="stat"><div class="stat-num" id="stat-subs">0</div><div class="stat-label">Subreddits</div></div>
+    <div class="stat"><div class="stat-num" id="stat-hot">0</div><div class="stat-label">Hot leads</div></div>
+  </div>
+
+  <div id="results-container">
+    <div class="empty">Select keywords and subreddits above, then hit Search Reddit</div>
+  </div>
+</div>
+
+<div class="draft-modal" id="draft-modal">
+  <div class="draft-box">
+    <h3>Draft reply</h3>
+    <div class="draft-content" id="draft-content"><span class="generating">Generating reply...</span></div>
+    <div class="draft-actions">
+      <button class="btn-close" onclick="closeDraft()">Close</button>
+      <button class="btn-copy" id="copy-btn" onclick="copyDraft()">Copy reply</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const KEYWORDS = [
+  { label: "no shows", value: "no show" },
+  { label: "appointment reminders", value: "appointment reminder" },
+  { label: "client follow up", value: "follow up clients" },
+  { label: "lapsed clients", value: "lapsed clients" },
+  { label: "win back clients", value: "win back" },
+  { label: "get more reviews", value: "get more reviews" },
+  { label: "Google reviews", value: "google reviews" },
+  { label: "client reactivation", value: "reactivation" },
+  { label: "SMS reminders", value: "sms reminder" },
+  { label: "clients not coming back", value: "clients not coming back" },
+  { label: "slow business", value: "slow business" },
+  { label: "ghosting clients", value: "ghosting" },
+  { label: "booking software", value: "booking software" },
+  { label: "automated texts", value: "automated text" },
+];
+
+const SUBREDDITS = [
+  "smallbusiness","Entrepreneur","Esthetics","HairstylistLife",
+  "beautysalon","tattoo","personaltraining","physicaltherapy",
+  "massage","nail_tech","MedSpa","spa"
+];
+
+const REPLY_TEMPLATES = [
+  (title) => `Hey, I've seen this come up a lot in service businesses. The biggest thing that helped me was automating the follow-up entirely — SMS reminders before the appointment, and an automatic check-in after. Cuts no-shows dramatically without any manual effort. We actually built a tool called Revflo (revflo.app) specifically for this if you want to check it out, but even setting up basic text reminders manually through your booking software can make a big difference. Good luck!`,
+  (title) => `This is such a common pain point. A few things that actually work: 1) automated SMS reminder 48h before + day of, 2) a follow-up text asking for a Google review after the appointment, 3) a reactivation text if they haven't been back in 30+ days. We built Revflo to automate all of this for service businesses — happy to answer questions if you want to dig in. But even doing this manually is worth the effort.`,
+  (title) => `Getting more Google reviews is mostly a timing + friction problem. Most clients will leave a review if you ask at the right moment (right after a great appointment) with a direct link. Automating that follow-up text is the easiest win. We built Revflo specifically for this — it sends the review request automatically and even drafts AI responses to reviews. But the key insight is: ask immediately, make it one tap, and most people will do it.`,
+];
+
+let activeKeywords = new Set(["no show","appointment reminder","follow up clients","get more reviews","google reviews"]);
+let activeSubreddits = new Set(["smallbusiness","Esthetics","HairstylistLife","beautysalon","personaltraining"]);
+let allResults = [];
+let currentDraft = "";
+
+function renderKeywordTags() {
+  const c = document.getElementById("keyword-tags");
+  c.innerHTML = KEYWORDS.map(k =>
+    `<span class="tag ${activeKeywords.has(k.value)?'active':''}" data-value="${k.value}">${k.label}</span>`
+  ).join("");
+  c.querySelectorAll(".tag").forEach(t => t.addEventListener("click", () => {
+    const v = t.dataset.value;
+    activeKeywords.has(v) ? activeKeywords.delete(v) : activeKeywords.add(v);
+    renderKeywordTags();
+  }));
+}
+
+function renderSubredditTags() {
+  const c = document.getElementById("subreddit-tags");
+  c.innerHTML = SUBREDDITS.map(s =>
+    `<span class="tag ${activeSubreddits.has(s)?'active':''}" data-value="${s}">r/${s}</span>`
+  ).join("");
+  c.querySelectorAll(".tag").forEach(t => t.addEventListener("click", () => {
+    const v = t.dataset.value;
+    activeSubreddits.has(v) ? activeSubreddits.delete(v) : activeSubreddits.add(v);
+    renderSubredditTags();
+  }));
+}
+
+function timeAgo(utc) {
+  const d = Math.floor((Date.now()/1000) - utc);
+  if (d < 3600) return Math.floor(d/60) + "m ago";
+  if (d < 86400) return Math.floor(d/3600) + "h ago";
+  return Math.floor(d/86400) + "d ago";
+}
+
+function isHot(post) {
+  const t = (post.title + " " + (post.selftext||"")).toLowerCase();
+  return ["no show","ghosting","clients not","win back","lapsed","follow up","reactivation"].some(k => t.includes(k)) && post.score > 3;
+}
+
+function highlight(text, keywords) {
+  if (!text) return "";
+  let r = text;
+  keywords.forEach(k => {
+    const re = new RegExp(`(${k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, "gi");
+    r = r.replace(re, '<span class="highlight">$1</span>');
+  });
+  return r;
+}
+
+function generateReply(post) {
+  const idx = Math.floor(Math.random() * REPLY_TEMPLATES.length);
+  return REPLY_TEMPLATES[idx](post.title);
+}
+
+function openDraft(postId) {
+  const post = allResults.find(p => p.id === postId);
+  if (!post) return;
+  currentDraft = generateReply(post);
+  document.getElementById("draft-content").textContent = currentDraft;
+  document.getElementById("draft-modal").classList.add("open");
+}
+
+function closeDraft() {
+  document.getElementById("draft-modal").classList.remove("open");
+}
+
+function copyDraft() {
+  navigator.clipboard.writeText(currentDraft).then(() => {
+    const btn = document.getElementById("copy-btn");
+    btn.textContent = "Copied!";
+    setTimeout(() => btn.textContent = "Copy reply", 2000);
+  });
+}
+
+function renderResults(posts) {
+  const c = document.getElementById("results-container");
+  const minScore = parseInt(document.getElementById("min-score").value) || 0;
+  const filtered = posts.filter(p => p.score >= minScore);
+  const hotCount = filtered.filter(isHot).length;
+  const subCount = new Set(filtered.map(p => p.subreddit)).size;
+
+  document.getElementById("stat-total").textContent = filtered.length;
+  document.getElementById("stat-subs").textContent = subCount;
+  document.getElementById("stat-hot").textContent = hotCount;
+  document.getElementById("stats").style.display = filtered.length ? "grid" : "none";
+
+  if (!filtered.length) {
+    c.innerHTML = '<div class="empty">No posts found. Try different keywords or subreddits.</div>';
+    return;
+  }
+
+  const kwList = Array.from(activeKeywords);
+  c.innerHTML = '<div class="results">' + filtered.map(post => {
+    const snippet = post.selftext ? post.selftext.slice(0,200) + (post.selftext.length > 200 ? "..." : "") : "";
+    const url = "https://reddit.com" + post.permalink;
+    return `
+      <div class="post-card">
+        <div class="post-meta">
+          <span class="badge badge-sub">r/${post.subreddit}</span>
+          <span class="badge badge-score">${post.score} upvotes</span>
+          ${isHot(post) ? '<span class="badge badge-hot">hot lead</span>' : ''}
+          <span class="badge badge-kw">${post.matched_keyword}</span>
+        </div>
+        <div class="post-title">${highlight(post.title, kwList)}</div>
+        ${snippet ? `<div class="post-snippet">${highlight(snippet, kwList)}</div>` : ''}
+        <div class="post-footer">
+          <div class="post-meta-info">u/${post.author} · ${timeAgo(post.created_utc)} · ${post.num_comments} comments</div>
+          <div class="post-actions">
+            <a class="btn-view" href="${url}" target="_blank">View post</a>
+            <button class="btn-reply" onclick="openDraft('${post.id}')">Draft reply</button>
+          </div>
+        </div>
+      </div>`;
+  }).join("") + "</div>";
+}
+
+async function fetchSubreddit(sub, kw, sort) {
+  const url = `https://www.reddit.com/r/${sub}/search.json?q=${encodeURIComponent(kw)}&restrict_sr=1&sort=${sort}&limit=10&t=month`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data?.data?.children || []).map(c => ({ ...c.data, matched_keyword: kw, subreddit: sub }));
+  } catch { return []; }
+}
+
+async function doSearch() {
+  if (!activeKeywords.size || !activeSubreddits.size) {
+    document.getElementById("results-container").innerHTML = '<div class="empty">Select at least one keyword and one subreddit.</div>';
+    return;
+  }
+  const btn = document.getElementById("search-btn");
+  btn.disabled = true; btn.textContent = "Searching...";
+  document.getElementById("results-container").innerHTML = '<div class="loading">Fetching posts from Reddit...</div>';
+  document.getElementById("stats").style.display = "none";
+
+  const sort = document.getElementById("sort-select").value;
+  const promises = [];
+  Array.from(activeSubreddits).forEach(sub =>
+    Array.from(activeKeywords).forEach(kw => promises.push(fetchSubreddit(sub, kw, sort)))
+  );
+
+  try {
+    const flat = (await Promise.all(promises)).flat();
+    const seen = new Set();
+    allResults = flat.filter(p => { if(seen.has(p.id)) return false; seen.add(p.id); return true; })
+                     .sort((a,b) => b.score - a.score);
+    renderResults(allResults);
+  } catch {
+    document.getElementById("results-container").innerHTML = '<div class="error-msg">Failed to fetch. Reddit may be rate limiting — wait a moment and try again.</div>';
+  } finally {
+    btn.disabled = false; btn.textContent = "Search Reddit";
+  }
+}
+
+document.getElementById("search-btn").addEventListener("click", doSearch);
+document.getElementById("min-score").addEventListener("change", () => renderResults(allResults));
+document.getElementById("draft-modal").addEventListener("click", e => { if(e.target === e.currentTarget) closeDraft(); });
+
+renderKeywordTags();
+renderSubredditTags();
+</script>
+</body>
+</html>
